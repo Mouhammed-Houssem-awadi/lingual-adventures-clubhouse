@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import GameCard from '@/components/GameCard';
@@ -24,7 +25,7 @@ const Index = () => {
           title: 'Word Wizard',
           description: 'Match pictures with words to cast magic spells!',
           icon: '🧙‍♂️',
-          difficulty: 'easy',
+          difficulty: 'easy' as const,
           progress: 75,
           locked: false
         },
@@ -32,7 +33,7 @@ const Index = () => {
           title: 'Sentence Builder',
           description: 'Build bridges by arranging words in the right order!',
           icon: '🌉',
-          difficulty: 'medium',
+          difficulty: 'medium' as const,
           progress: 30,
           locked: false
         },
@@ -40,7 +41,7 @@ const Index = () => {
           title: 'Grammar Castle',
           description: 'Defend the castle by choosing the correct grammar!',
           icon: '🏰',
-          difficulty: 'hard',
+          difficulty: 'hard' as const,
           progress: 0,
           locked: false
         },
@@ -48,7 +49,7 @@ const Index = () => {
           title: 'Pronunciation Palace',
           description: 'Practice speaking to unlock the royal treasury!',
           icon: '🎤',
-          difficulty: 'medium',
+          difficulty: 'medium' as const,
           progress: 100,
           locked: false
         }
@@ -65,7 +66,7 @@ const Index = () => {
           title: 'Magicien des Mots',
           description: 'Associez des images avec des mots pour lancer des sorts magiques!',
           icon: '🧙‍♂️',
-          difficulty: 'facile',
+          difficulty: 'easy' as const,
           progress: 75,
           locked: false
         },
@@ -73,7 +74,7 @@ const Index = () => {
           title: 'Constructeur de Phrases',
           description: 'Construisez des ponts en arrangeant les mots dans le bon ordre!',
           icon: '🌉',
-          difficulty: 'moyen',
+          difficulty: 'medium' as const,
           progress: 30,
           locked: false
         },
@@ -81,7 +82,7 @@ const Index = () => {
           title: 'Château de Grammaire',
           description: 'Défendez le château en choisissant la grammaire correcte!',
           icon: '🏰',
-          difficulty: 'difficile',
+          difficulty: 'hard' as const,
           progress: 0,
           locked: false
         },
@@ -89,7 +90,7 @@ const Index = () => {
           title: 'Palais de Prononciation',
           description: 'Entraînez-vous à parler pour débloquer le trésor royal!',
           icon: '🎤',
-          difficulty: 'moyen',
+          difficulty: 'medium' as const,
           progress: 100,
           locked: false
         }
@@ -136,12 +137,24 @@ const Index = () => {
 
         
         <div className="text-center">
-          <AdventureCharacter />
+          <AdventureCharacter name="Luna" mood="happy" size="large" />
         </div>
 
-        <ProgressTracker />
+        <ProgressTracker 
+          level={5}
+          experience={750}
+          maxExperience={1000}
+          stars={125}
+          badges={['First Steps', 'Word Master', 'Grammar Guru', 'Quiz Champion']}
+          streakDays={7}
+        />
 
-        <StoryAdventure currentLanguage={currentLanguage} />
+        <StoryAdventure 
+          currentLocation="magic-forest"
+          storyProgress={65}
+          onContinueStory={() => console.log('Continue story')}
+          language={currentLanguage}
+        />
 
         <section>
           <div className="text-center mb-8">

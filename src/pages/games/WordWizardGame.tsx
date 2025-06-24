@@ -1,26 +1,19 @@
-
 import React, { useState, useEffect } from 'react';
 import GameLayout from '@/components/GameLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { wordPairs, getQuestionsByDifficulty, calculateDifficultyRange } from '@/utils/gameQuestions';
 
 interface WordMatch {
   id: string;
   word: string;
   image: string;
   matched: boolean;
+  difficulty: number;
 }
 
 const WordWizardGame: React.FC = () => {
-  const [words] = useState<WordMatch[]>([
-    { id: '1', word: 'Cat', image: '🐱', matched: false },
-    { id: '2', word: 'Dog', image: '🐶', matched: false },
-    { id: '3', word: 'Bird', image: '🐦', matched: false },
-    { id: '4', word: 'Fish', image: '🐠', matched: false },
-    { id: '5', word: 'Butterfly', image: '🦋', matched: false },
-    { id: '6', word: 'Flower', image: '🌸', matched: false },
-  ]);
-
+  const [currentWords, setCurrentWords] = useState<WordMatch[]>([]);
   const [shuffledWords, setShuffledWords] = useState<WordMatch[]>([]);
   const [shuffledImages, setShuffledImages] = useState<WordMatch[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -29,14 +22,31 @@ const WordWizardGame: React.FC = () => {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [gameComplete, setGameComplete] = useState(false);
+  const [round, setRound] = useState(1);
 
   const { toast } = useToast();
 
+  const loadNewRound = () => {
+    const { min, max } = calculateDifficultyRange(score);
+    const availableWords = getQuestionsByDifficulty(wordPairs, min, max);
+    
+    // Select 6 random words from available difficulty range
+    const selectedWords = availableWords
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(6, availableWords.length))
+      .map(word => ({ ...word, matched: false }));
+
+    setCurrentWords(selectedWords);
+    setShuffledWords([...selectedWords].sort(() => Math.random() - 0.5));
+    setShuffledImages([...selectedWords].sort(() => Math.random() - 0.5));
+    setMatches([]);
+    setSelectedWord(null);
+    setSelectedImage(null);
+  };
+
   useEffect(() => {
-    // Shuffle words and images separately
-    setShuffledWords([...words].sort(() => Math.random() - 0.5));
-    setShuffledImages([...words].sort(() => Math.random() - 0.5));
-  }, []);
+    loadNewRound();
+  }, [score]);
 
   const handleWordClick = (word: WordMatch) => {
     if (matches.includes(word.id)) return;
@@ -59,22 +69,30 @@ const WordWizardGame: React.FC = () => {
   const checkMatch = (wordId: string, imageId: string) => {
     if (wordId === imageId) {
       // Correct match!
+      const matchedWord = currentWords.find(w => w.id === wordId);
+      const basePoints = 50;
+      const difficultyMultiplier = matchedWord ? matchedWord.difficulty * 25 : 25;
+      const points = basePoints + difficultyMultiplier;
+      
       setMatches(prev => [...prev, wordId]);
-      setScore(prev => prev + 100);
+      setScore(prev => prev + points);
       setSelectedWord(null);
       setSelectedImage(null);
       
       toast({
         title: "Excellent! ⭐",
-        description: "Perfect match! Keep going!",
+        description: `Perfect match! +${points} points!`,
       });
 
-      if (matches.length + 1 === words.length) {
-        setGameComplete(true);
+      if (matches.length + 1 === currentWords.length) {
+        setRound(prev => prev + 1);
         toast({
-          title: "🎉 Congratulations!",
-          description: "You've completed Word Wizard! Amazing work!",
+          title: "🎉 Round Complete!",
+          description: "Get ready for the next challenge!",
         });
+        setTimeout(() => {
+          loadNewRound();
+        }, 2000);
       }
     } else {
       // Wrong match
@@ -89,9 +107,10 @@ const WordWizardGame: React.FC = () => {
       });
 
       if (lives <= 1) {
+        setGameComplete(true);
         toast({
           title: "Game Over",
-          description: "Don't worry! Practice makes perfect!",
+          description: `Final Score: ${score} points! Practice makes perfect!`,
           variant: "destructive",
         });
       }
@@ -102,11 +121,19 @@ const WordWizardGame: React.FC = () => {
     setMatches([]);
     setScore(0);
     setLives(3);
+    setRound(1);
     setGameComplete(false);
     setSelectedWord(null);
     setSelectedImage(null);
-    setShuffledWords([...words].sort(() => Math.random() - 0.5));
-    setShuffledImages([...words].sort(() => Math.random() - 0.5));
+    loadNewRound();
+  };
+
+  const getDifficultyLabel = () => {
+    const { min, max } = calculateDifficultyRange(score);
+    if (max <= 2) return "Beginner Wizard";
+    if (max <= 3) return "Apprentice Wizard";
+    if (max <= 4) return "Expert Wizard";
+    return "Master Wizard";
   };
 
   return (
@@ -116,14 +143,15 @@ const WordWizardGame: React.FC = () => {
       icon="🧙‍♂️"
       score={score}
       lives={lives}
+      level={round}
     >
       <div className="kid-card">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold text-kid-purple mb-2">
-            Match the words with the pictures!
+            {getDifficultyLabel()} - Round {round}
           </h2>
           <p className="text-gray-600">
-            Click on a word, then click on its matching picture to cast a spell!
+            Match the words with the pictures to cast spells! Difficulty increases as you score more points!
           </p>
         </div>
 
@@ -131,26 +159,13 @@ const WordWizardGame: React.FC = () => {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🎉</div>
             <h3 className="text-3xl font-bold text-kid-purple mb-4">
-              Magical Success!
+              {score >= 1000 ? "Master Wizard!" : score >= 500 ? "Expert Wizard!" : "Great Job!"}
             </h3>
             <p className="text-lg text-gray-600 mb-6">
-              You've mastered all the word spells! Final Score: {score}
+              You reached Round {round} and scored {score} points!
             </p>
             <Button onClick={resetGame} className="game-button">
-              Play Again 🔄
-            </Button>
-          </div>
-        ) : lives <= 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">😢</div>
-            <h3 className="text-3xl font-bold text-kid-purple mb-4">
-              Try Again!
-            </h3>
-            <p className="text-lg text-gray-600 mb-6">
-              Practice makes perfect! Let's try once more.
-            </p>
-            <Button onClick={resetGame} className="game-button">
-              Try Again 🔄
+              Cast New Spells 🔄
             </Button>
           </div>
         ) : (
@@ -178,6 +193,9 @@ const WordWizardGame: React.FC = () => {
                   >
                     {word.word}
                     {matches.includes(word.id) && ' ✅'}
+                    <div className="text-xs opacity-70">
+                      Level {word.difficulty}
+                    </div>
                   </Button>
                 ))}
               </div>

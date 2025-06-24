@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
 
 interface GameCardProps {
   title: string;
@@ -9,7 +10,7 @@ interface GameCardProps {
   difficulty: 'easy' | 'medium' | 'hard';
   progress: number;
   locked?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }
 
 const GameCard: React.FC<GameCardProps> = ({
@@ -21,6 +22,8 @@ const GameCard: React.FC<GameCardProps> = ({
   locked = false,
   onClick
 }) => {
+  const navigate = useNavigate();
+  
   const difficultyColors = {
     easy: 'from-kid-green to-kid-blue',
     medium: 'from-kid-orange to-kid-yellow',
@@ -33,6 +36,32 @@ const GameCard: React.FC<GameCardProps> = ({
     hard: 'Hard'
   };
 
+  // Map game titles to routes
+  const getGameRoute = (gameTitle: string) => {
+    const routes: { [key: string]: string } = {
+      'Word Wizard': '/games/word-wizard',
+      'Magicien des Mots': '/games/word-wizard',
+      'Sentence Builder': '/games/sentence-builder',
+      'Constructeur de Phrases': '/games/sentence-builder',
+      'Grammar Castle': '/games/grammar-castle',
+      'Château de Grammaire': '/games/grammar-castle',
+      'Pronunciation Palace': '/games/pronunciation-palace',
+      'Palais de Prononciation': '/games/pronunciation-palace'
+    };
+    return routes[gameTitle];
+  };
+
+  const handleClick = () => {
+    if (locked) return;
+    
+    const route = getGameRoute(title);
+    if (route) {
+      navigate(route);
+    } else if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <Card 
       className={`
@@ -42,7 +71,7 @@ const GameCard: React.FC<GameCardProps> = ({
           : 'kid-card hover:animate-pulse-rainbow'
         }
       `}
-      onClick={locked ? undefined : onClick}
+      onClick={handleClick}
     >
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-10">

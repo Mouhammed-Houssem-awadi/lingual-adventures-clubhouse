@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import ProgressTracker from '@/components/ProgressTracker';
@@ -27,13 +26,6 @@ const Index = () => {
     toast({
       title: language === 'en' ? "Switched to English!" : "Basculé en Français!",
       description: language === 'en' ? "Let's learn English together! 🇺🇸" : "Apprenons le français ensemble! 🇫🇷",
-    });
-  };
-
-  const handleGameClick = (gameTitle: string) => {
-    toast({
-      title: currentLanguage === 'en' ? "Game Starting!" : "Jeu en cours!",
-      description: `${gameTitle} ${currentLanguage === 'en' ? 'is loading...' : 'se charge...'}`,
     });
   };
 
@@ -182,7 +174,6 @@ const Index = () => {
                   <GameCard
                     key={index}
                     {...game}
-                    onClick={() => handleGameClick(game.title)}
                   />
                 ))}
               </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import GameLayout from '@/components/GameLayout';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ const WordWizardGame: React.FC = () => {
   const [lives, setLives] = useState(3);
   const [gameComplete, setGameComplete] = useState(false);
   const [round, setRound] = useState(1);
+  const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
 
@@ -30,11 +32,22 @@ const WordWizardGame: React.FC = () => {
     const { min, max } = calculateDifficultyRange(score);
     const availableWords = getQuestionsByDifficulty(wordPairs, min, max);
     
-    // Select 6 random words from available difficulty range
-    const selectedWords = availableWords
+    // Filter out already used words to ensure variety
+    const unusedWords = availableWords.filter(word => !usedWords.has(word.id));
+    
+    // If we've used all words at this difficulty, reset the used words set
+    const wordsToUse = unusedWords.length >= 6 ? unusedWords : availableWords;
+    
+    // Select 6 random words
+    const selectedWords = wordsToUse
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.min(6, availableWords.length))
+      .slice(0, Math.min(6, wordsToUse.length))
       .map(word => ({ ...word, matched: false }));
+
+    // Update used words
+    const newUsedWords = new Set(usedWords);
+    selectedWords.forEach(word => newUsedWords.add(word.id));
+    setUsedWords(newUsedWords);
 
     setCurrentWords(selectedWords);
     setShuffledWords([...selectedWords].sort(() => Math.random() - 0.5));
@@ -46,7 +59,7 @@ const WordWizardGame: React.FC = () => {
 
   useEffect(() => {
     loadNewRound();
-  }, [score]);
+  }, []);
 
   const handleWordClick = (word: WordMatch) => {
     if (matches.includes(word.id)) return;
@@ -68,11 +81,11 @@ const WordWizardGame: React.FC = () => {
 
   const checkMatch = (wordId: string, imageId: string) => {
     if (wordId === imageId) {
-      // Correct match!
       const matchedWord = currentWords.find(w => w.id === wordId);
       const basePoints = 50;
       const difficultyMultiplier = matchedWord ? matchedWord.difficulty * 25 : 25;
-      const points = basePoints + difficultyMultiplier;
+      const roundBonus = round * 10;
+      const points = basePoints + difficultyMultiplier + roundBonus;
       
       setMatches(prev => [...prev, wordId]);
       setScore(prev => prev + points);
@@ -95,7 +108,6 @@ const WordWizardGame: React.FC = () => {
         }, 2000);
       }
     } else {
-      // Wrong match
       setLives(prev => prev - 1);
       setSelectedWord(null);
       setSelectedImage(null);
@@ -125,6 +137,7 @@ const WordWizardGame: React.FC = () => {
     setGameComplete(false);
     setSelectedWord(null);
     setSelectedImage(null);
+    setUsedWords(new Set());
     loadNewRound();
   };
 
@@ -151,7 +164,7 @@ const WordWizardGame: React.FC = () => {
             {getDifficultyLabel()} - Round {round}
           </h2>
           <p className="text-gray-600">
-            Match the words with the pictures to cast spells! Difficulty increases as you score more points!
+            Match the words with the pictures to cast spells! Questions get harder as you progress!
           </p>
         </div>
 
@@ -170,7 +183,6 @@ const WordWizardGame: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Words Column */}
             <div>
               <h3 className="text-xl font-bold text-kid-purple mb-4 text-center">
                 Words 📝
@@ -201,7 +213,6 @@ const WordWizardGame: React.FC = () => {
               </div>
             </div>
 
-            {/* Images Column */}
             <div>
               <h3 className="text-xl font-bold text-kid-purple mb-4 text-center">
                 Pictures 🖼️

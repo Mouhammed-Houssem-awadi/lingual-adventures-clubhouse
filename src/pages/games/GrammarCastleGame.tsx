@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GameLayout from '@/components/GameLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { grammarQuestions, getQuestionsByDifficulty, calculateDifficultyRange } from '@/utils/gameQuestions';
 
 interface GrammarQuestion {
   id: string;
@@ -10,79 +11,66 @@ interface GrammarQuestion {
   options: string[];
   correctAnswer: number;
   explanation: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: number;
+  topic: string;
 }
 
 const GrammarCastleGame: React.FC = () => {
-  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [currentQuestion, setCurrentQuestion] = useState<GrammarQuestion | null>(null);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [gameComplete, setGameComplete] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [castleHealth, setCastleHealth] = useState(100);
+  const [round, setRound] = useState(1);
+  const [usedQuestions, setUsedQuestions] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
 
-  const questions: GrammarQuestion[] = [
-    {
-      id: '1',
-      question: 'Choose the correct verb: "She _____ to school every day."',
-      options: ['go', 'goes', 'going', 'gone'],
-      correctAnswer: 1,
-      explanation: 'We use "goes" because "she" is third person singular, so we add -es to the verb.',
-      difficulty: 'easy'
-    },
-    {
-      id: '2',
-      question: 'Which sentence is correct?',
-      options: [
-        'I have ate lunch',
-        'I have eaten lunch',
-        'I has eaten lunch',
-        'I have eat lunch'
-      ],
-      correctAnswer: 1,
-      explanation: 'The present perfect tense uses "have/has + past participle". "Eaten" is the past participle of "eat".',
-      difficulty: 'medium'
-    },
-    {
-      id: '3',
-      question: 'Choose the correct article: "I saw _____ elephant at the zoo."',
-      options: ['a', 'an', 'the', 'no article'],
-      correctAnswer: 1,
-      explanation: 'We use "an" before words that start with a vowel sound. "Elephant" starts with "e".',
-      difficulty: 'easy'
-    },
-    {
-      id: '4',
-      question: 'Which is the correct past tense: "Yesterday, I _____ my homework."',
-      options: ['do', 'did', 'done', 'doing'],
-      correctAnswer: 1,
-      explanation: '"Did" is the past tense of "do". We use past tense for actions that happened yesterday.',
-      difficulty: 'medium'
-    },
-    {
-      id: '5',
-      question: 'Choose the correct possessive form: "This is _____ book."',
-      options: ['Johns', 'John\'s', 'Johns\'', 'John'],
-      correctAnswer: 1,
-      explanation: 'We use an apostrophe + s to show possession for singular nouns.',
-      difficulty: 'hard'
-    }
-  ];
+  const loadNewQuestion = () => {
+    const { min, max } = calculateDifficultyRange(score);
+    const availableQuestions = getQuestionsByDifficulty(grammarQuestions, min, max);
+    
+    // Filter out used questions for variety
+    const unusedQuestions = availableQuestions.filter(q => !usedQuestions.has(q.id));
+    const questionsToUse = unusedQuestions.length > 0 ? unusedQuestions : availableQuestions;
+    
+    // Select random question
+    const selectedQuestion = questionsToUse[Math.floor(Math.random() * questionsToUse.length)];
+    
+    // Update used questions
+    const newUsedQuestions = new Set(usedQuestions);
+    newUsedQuestions.add(selectedQuestion.id);
+    setUsedQuestions(newUsedQuestions);
+    
+    setCurrentQuestion(selectedQuestion);
+    setSelectedAnswer(null);
+    setShowExplanation(false);
+  };
+
+  useEffect(() => {
+    loadNewQuestion();
+  }, []);
 
   const handleAnswerSelect = (answerIndex: number) => {
+    if (!currentQuestion) return;
+    
     setSelectedAnswer(answerIndex);
     setShowExplanation(true);
 
-    const isCorrect = answerIndex === questions[currentQuestion].correctAnswer;
+    const isCorrect = answerIndex === currentQuestion.correctAnswer;
 
     if (isCorrect) {
-      setScore(prev => prev + 150);
+      const basePoints = 150;
+      const difficultyBonus = currentQuestion.difficulty * 50;
+      const roundBonus = round * 20;
+      const points = basePoints + difficultyBonus + roundBonus;
+      
+      setScore(prev => prev + points);
       toast({
         title: "Excellent Defense! 🛡️",
-        description: "The castle is safe! Great grammar knowledge!",
+        description: `The castle is safe! +${points} points!`,
       });
     } else {
       setLives(prev => prev - 1);
@@ -94,6 +82,7 @@ const GrammarCastleGame: React.FC = () => {
       });
 
       if (lives <= 1) {
+        setGameComplete(true);
         toast({
           title: "Castle Fallen! 🏰💔",
           description: "Don't give up! Every knight learns from defeat!",
@@ -104,31 +93,26 @@ const GrammarCastleGame: React.FC = () => {
     }
 
     setTimeout(() => {
-      if (currentQuestion + 1 >= questions.length) {
-        setGameComplete(true);
-        toast({
-          title: "🏆 Castle Defender Champion!",
-          description: "You've protected the Grammar Castle! Outstanding!",
-        });
-      } else {
-        setCurrentQuestion(prev => prev + 1);
-        setSelectedAnswer(null);
-        setShowExplanation(false);
-      }
+      setRound(prev => prev + 1);
+      loadNewQuestion();
     }, 3000);
   };
 
   const resetGame = () => {
-    setCurrentQuestion(0);
     setScore(0);
     setLives(3);
     setCastleHealth(100);
     setGameComplete(false);
     setSelectedAnswer(null);
     setShowExplanation(false);
+    setRound(1);
+    setUsedQuestions(new Set());
+    loadNewQuestion();
   };
 
-  const currentQ = questions[currentQuestion];
+  if (!currentQuestion) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <GameLayout
@@ -137,7 +121,7 @@ const GrammarCastleGame: React.FC = () => {
       icon="🏰"
       score={score}
       lives={lives}
-      level={currentQuestion + 1}
+      level={round}
     >
       <div className="kid-card">
         {gameComplete ? (
@@ -147,7 +131,7 @@ const GrammarCastleGame: React.FC = () => {
               Grammar Castle Champion!
             </h3>
             <p className="text-lg text-gray-600 mb-6">
-              You've successfully defended the realm! Final Score: {score}
+              You defended for {round - 1} rounds! Final Score: {score}
             </p>
             <Button onClick={resetGame} className="game-button">
               Defend Another Castle 🏰
@@ -186,21 +170,26 @@ const GrammarCastleGame: React.FC = () => {
             <div className="text-center">
               <div className="text-6xl mb-4">🏰⚔️</div>
               <h2 className="text-2xl font-bold text-kid-purple mb-4">
-                Defend the Castle!
+                Defend the Castle! - Round {round}
               </h2>
               <div className="bg-white/80 rounded-xl p-6 border-2 border-kid-purple/30">
-                <h3 className="text-xl font-bold text-kid-purple mb-4">
-                  Question {currentQuestion + 1} of {questions.length}
-                </h3>
+                <div className="flex items-center justify-center space-x-4 mb-4">
+                  <div className="bg-kid-blue/20 px-3 py-1 rounded-full text-sm font-bold text-kid-purple">
+                    Topic: {currentQuestion.topic.charAt(0).toUpperCase() + currentQuestion.topic.slice(1)}
+                  </div>
+                  <div className="bg-kid-orange/20 px-3 py-1 rounded-full text-sm font-bold text-kid-purple">
+                    Level: {currentQuestion.difficulty}
+                  </div>
+                </div>
                 <p className="text-lg text-gray-700 mb-6">
-                  {currentQ.question}
+                  {currentQuestion.question}
                 </p>
               </div>
             </div>
 
             {/* Answer Options */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentQ.options.map((option, index) => (
+              {currentQuestion.options.map((option, index) => (
                 <Button
                   key={index}
                   onClick={() => !showExplanation && handleAnswerSelect(index)}
@@ -208,7 +197,7 @@ const GrammarCastleGame: React.FC = () => {
                   className={`
                     p-6 text-lg font-bold rounded-xl transition-all duration-200 min-h-16
                     ${showExplanation
-                      ? index === currentQ.correctAnswer
+                      ? index === currentQuestion.correctAnswer
                         ? 'bg-kid-green text-white cursor-default'
                         : selectedAnswer === index
                         ? 'bg-kid-red text-white cursor-default'
@@ -222,10 +211,10 @@ const GrammarCastleGame: React.FC = () => {
                       {String.fromCharCode(65 + index)}
                     </span>
                     <span>{option}</span>
-                    {showExplanation && index === currentQ.correctAnswer && (
+                    {showExplanation && index === currentQuestion.correctAnswer && (
                       <span className="text-2xl">✅</span>
                     )}
-                    {showExplanation && selectedAnswer === index && index !== currentQ.correctAnswer && (
+                    {showExplanation && selectedAnswer === index && index !== currentQuestion.correctAnswer && (
                       <span className="text-2xl">❌</span>
                     )}
                   </div>
@@ -241,33 +230,10 @@ const GrammarCastleGame: React.FC = () => {
                   Grammar Wizard Explains:
                 </h4>
                 <p className="text-gray-700">
-                  {currentQ.explanation}
+                  {currentQuestion.explanation}
                 </p>
               </div>
             )}
-
-            {/* Progress */}
-            <div className="text-center">
-              <div className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-                <span className="text-kid-purple font-bold">
-                  Question {currentQuestion + 1} of {questions.length}
-                </span>
-                <div className="flex space-x-1">
-                  {questions.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-3 h-3 rounded-full ${
-                        index < currentQuestion 
-                          ? 'bg-kid-green' 
-                          : index === currentQuestion 
-                          ? 'bg-kid-yellow animate-pulse' 
-                          : 'bg-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>

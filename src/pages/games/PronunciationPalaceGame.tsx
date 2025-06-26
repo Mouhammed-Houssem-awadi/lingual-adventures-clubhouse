@@ -1,67 +1,55 @@
-
 import React, { useState, useEffect } from 'react';
 import GameLayout from '@/components/GameLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, Volume2, Play } from 'lucide-react';
+import { Mic, Volume2 } from 'lucide-react';
+import { pronunciationWords, getQuestionsByDifficulty, calculateDifficultyRange } from '@/utils/gameQuestions';
 
 interface PronunciationWord {
   id: string;
   word: string;
   phonetic: string;
-  audio?: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: number;
   tips: string;
+  category: string;
 }
 
 const PronunciationPalaceGame: React.FC = () => {
-  const [currentWord, setCurrentWord] = useState(0);
+  const [currentWord, setCurrentWord] = useState<PronunciationWord | null>(null);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [gameComplete, setGameComplete] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [hasRecorded, setHasRecorded] = useState(false);
   const [treasureChests, setTreasureChests] = useState(0);
+  const [round, setRound] = useState(1);
+  const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
 
-  const words: PronunciationWord[] = [
-    {
-      id: '1',
-      word: 'Hello',
-      phonetic: '/həˈloʊ/',
-      difficulty: 'easy',
-      tips: 'Say "heh-LOH" with emphasis on the second syllable.'
-    },
-    {
-      id: '2',
-      word: 'Beautiful',
-      phonetic: '/ˈbjuːtɪfəl/',
-      difficulty: 'medium',
-      tips: 'Break it down: "BYOO-ti-ful" - three syllables with stress on the first.'
-    },
-    {
-      id: '3',
-      word: 'Pronunciation',
-      phonetic: '/prəˌnʌnsiˈeɪʃən/',
-      difficulty: 'hard',
-      tips: 'Say "pruh-nun-see-AY-shun" - five syllables, stress on the fourth.'
-    },
-    {
-      id: '4',
-      word: 'Water',
-      phonetic: '/ˈwɔːtər/',
-      difficulty: 'easy',
-      tips: 'Say "WAW-ter" - make sure to pronounce the "t" sound clearly.'
-    },
-    {
-      id: '5',
-      word: 'Chocolate',
-      phonetic: '/ˈtʃɒklət/',
-      difficulty: 'medium',
-      tips: 'Say "CHOK-lit" - two syllables, not three! The "o" is silent.'
-    }
-  ];
+  const loadNewWord = () => {
+    const { min, max } = calculateDifficultyRange(score);
+    const availableWords = getQuestionsByDifficulty(pronunciationWords, min, max);
+    
+    // Filter out used words for variety
+    const unusedWords = availableWords.filter(w => !usedWords.has(w.id));
+    const wordsToUse = unusedWords.length > 0 ? unusedWords : availableWords;
+    
+    // Select random word
+    const selectedWord = wordsToUse[Math.floor(Math.random() * wordsToUse.length)];
+    
+    // Update used words
+    const newUsedWords = new Set(usedWords);
+    newUsedWords.add(selectedWord.id);
+    setUsedWords(newUsedWords);
+    
+    setCurrentWord(selectedWord);
+    setHasRecorded(false);
+  };
+
+  useEffect(() => {
+    loadNewWord();
+  }, []);
 
   const simulateRecording = () => {
     setIsRecording(true);
@@ -70,28 +58,27 @@ const PronunciationPalaceGame: React.FC = () => {
       setIsRecording(false);
       setHasRecorded(true);
       
-      // Simulate pronunciation evaluation (random for demo)
-      const isCorrect = Math.random() > 0.3; // 70% success rate for demo
+      // Simulate pronunciation evaluation with difficulty-based success rate
+      const difficultyFactor = currentWord ? (7 - currentWord.difficulty) / 6 : 0.7;
+      const isCorrect = Math.random() < difficultyFactor;
       
       if (isCorrect) {
-        setScore(prev => prev + 200);
+        const basePoints = 200;
+        const difficultyBonus = currentWord ? currentWord.difficulty * 75 : 75;
+        const roundBonus = round * 30;
+        const points = basePoints + difficultyBonus + roundBonus;
+        
+        setScore(prev => prev + points);
         setTreasureChests(prev => prev + 1);
+        setRound(prev => prev + 1);
+        
         toast({
           title: "Perfect Pronunciation! 🎉",
-          description: "You found a treasure chest! Excellent work!",
+          description: `You found a treasure chest! +${points} points!`,
         });
 
         setTimeout(() => {
-          if (currentWord + 1 >= words.length) {
-            setGameComplete(true);
-            toast({
-              title: "🏆 Pronunciation Palace Master!",
-              description: `You've unlocked all treasures! Found ${treasureChests + 1} chests!`,
-            });
-          } else {
-            setCurrentWord(prev => prev + 1);
-            setHasRecorded(false);
-          }
+          loadNewWord();
         }, 2000);
       } else {
         setLives(prev => prev - 1);
@@ -102,6 +89,7 @@ const PronunciationPalaceGame: React.FC = () => {
         });
 
         if (lives <= 1) {
+          setGameComplete(true);
           toast({
             title: "Palace Challenge Failed!",
             description: "Keep practicing! Every expert started as a beginner.",
@@ -115,33 +103,39 @@ const PronunciationPalaceGame: React.FC = () => {
   };
 
   const playExampleAudio = () => {
-    // In a real app, this would play actual audio
+    if (!currentWord) return;
     toast({
       title: "🔊 Playing Example",
-      description: `Listen carefully to "${words[currentWord].word}"`,
+      description: `Listen carefully to "${currentWord.word}"`,
     });
   };
 
   const skipWord = () => {
-    if (currentWord + 1 >= words.length) {
-      setGameComplete(true);
-    } else {
-      setCurrentWord(prev => prev + 1);
-      setHasRecorded(false);
-    }
+    setRound(prev => prev + 1);
+    loadNewWord();
   };
 
   const resetGame = () => {
-    setCurrentWord(0);
     setScore(0);
     setLives(3);
     setTreasureChests(0);
     setGameComplete(false);
     setHasRecorded(false);
     setIsRecording(false);
+    setRound(1);
+    setUsedWords(new Set());
+    loadNewWord();
   };
 
-  const currentWordData = words[currentWord];
+  if (!currentWord) {
+    return <div>Loading...</div>;
+  }
+
+  const getDifficultyColor = () => {
+    if (currentWord.difficulty <= 2) return 'bg-kid-green';
+    if (currentWord.difficulty <= 4) return 'bg-kid-orange';
+    return 'bg-kid-red';
+  };
 
   return (
     <GameLayout
@@ -150,7 +144,7 @@ const PronunciationPalaceGame: React.FC = () => {
       icon="🎤"
       score={score}
       lives={lives}
-      level={currentWord + 1}
+      level={round}
     >
       <div className="kid-card">
         {gameComplete ? (
@@ -197,15 +191,23 @@ const PronunciationPalaceGame: React.FC = () => {
             <div className="text-center">
               <div className="text-6xl mb-4">🏰🎤</div>
               <h2 className="text-2xl font-bold text-kid-purple mb-4">
-                Speak to Unlock the Treasury!
+                Speak to Unlock the Treasury! - Round {round}
               </h2>
               
               <div className="bg-white/80 rounded-xl p-6 border-2 border-kid-purple/30 mb-6">
+                <div className="flex items-center justify-center space-x-4 mb-4">
+                  <div className="bg-kid-blue/20 px-3 py-1 rounded-full text-sm font-bold text-kid-purple">
+                    Category: {currentWord.category.charAt(0).toUpperCase() + currentWord.category.slice(1)}
+                  </div>
+                  <div className={`${getDifficultyColor()} px-3 py-1 rounded-full text-sm font-bold text-white`}>
+                    Level: {currentWord.difficulty}
+                  </div>
+                </div>
                 <h3 className="text-3xl font-bold text-kid-purple mb-2">
-                  {currentWordData.word}
+                  {currentWord.word}
                 </h3>
                 <p className="text-lg text-gray-600 mb-4">
-                  Pronunciation: <span className="font-mono text-kid-blue">{currentWordData.phonetic}</span>
+                  Pronunciation: <span className="font-mono text-kid-blue">{currentWord.phonetic}</span>
                 </p>
                 
                 <div className="flex justify-center space-x-4 mb-4">
@@ -220,7 +222,7 @@ const PronunciationPalaceGame: React.FC = () => {
 
                 <div className="bg-kid-yellow/20 rounded-lg p-4">
                   <h4 className="font-bold text-kid-purple mb-2">💡 Pronunciation Tip:</h4>
-                  <p className="text-gray-700">{currentWordData.tips}</p>
+                  <p className="text-gray-700">{currentWord.tips}</p>
                 </div>
               </div>
             </div>
@@ -272,44 +274,6 @@ const PronunciationPalaceGame: React.FC = () => {
                     : "Click the microphone and say the word clearly!"
                   }
                 </p>
-              </div>
-            </div>
-
-            {/* Difficulty Badge */}
-            <div className="text-center">
-              <div className={`
-                inline-block px-4 py-2 rounded-full font-bold text-white
-                ${currentWordData.difficulty === 'easy' 
-                  ? 'bg-kid-green' 
-                  : currentWordData.difficulty === 'medium' 
-                  ? 'bg-kid-orange' 
-                  : 'bg-kid-red'
-                }
-              `}>
-                {currentWordData.difficulty.toUpperCase()} LEVEL
-              </div>
-            </div>
-
-            {/* Progress */}
-            <div className="text-center">
-              <div className="inline-flex items-center space-x-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-                <span className="text-kid-purple font-bold">
-                  Word {currentWord + 1} of {words.length}
-                </span>
-                <div className="flex space-x-1">
-                  {words.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-3 h-3 rounded-full ${
-                        index < currentWord 
-                          ? 'bg-kid-green' 
-                          : index === currentWord 
-                          ? 'bg-kid-yellow animate-pulse' 
-                          : 'bg-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
               </div>
             </div>
           </div>

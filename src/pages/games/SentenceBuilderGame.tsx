@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import GameLayout from '@/components/GameLayout';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { sentences, getQuestionsByDifficulty, calculateDifficultyRange } from '@/utils/gameQuestions';
 
 interface WordBlock {
   id: string;
@@ -15,67 +15,46 @@ interface Sentence {
   sentence: string;
   words: WordBlock[];
   translation: string;
+  difficulty: number;
 }
 
 const SentenceBuilderGame: React.FC = () => {
-  const [currentSentence, setCurrentSentence] = useState(0);
+  const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null);
   const [userSentence, setUserSentence] = useState<WordBlock[]>([]);
   const [availableWords, setAvailableWords] = useState<WordBlock[]>([]);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [gameComplete, setGameComplete] = useState(false);
+  const [round, setRound] = useState(1);
+  const [usedSentences, setUsedSentences] = useState<Set<string>>(new Set());
 
   const { toast } = useToast();
 
-  const sentences: Sentence[] = [
-    {
-      id: '1',
-      sentence: 'The cat is sleeping',
-      words: [
-        { id: '1', word: 'The', order: 1 },
-        { id: '2', word: 'cat', order: 2 },
-        { id: '3', word: 'is', order: 3 },
-        { id: '4', word: 'sleeping', order: 4 },
-      ],
-      translation: 'Le chat dort'
-    },
-    {
-      id: '2',
-      sentence: 'I like to read books',
-      words: [
-        { id: '5', word: 'I', order: 1 },
-        { id: '6', word: 'like', order: 2 },
-        { id: '7', word: 'to', order: 3 },
-        { id: '8', word: 'read', order: 4 },
-        { id: '9', word: 'books', order: 5 },
-      ],
-      translation: 'J\'aime lire des livres'
-    },
-    {
-      id: '3',
-      sentence: 'The sun is bright today',
-      words: [
-        { id: '10', word: 'The', order: 1 },
-        { id: '11', word: 'sun', order: 2 },
-        { id: '12', word: 'is', order: 3 },
-        { id: '13', word: 'bright', order: 4 },
-        { id: '14', word: 'today', order: 5 },
-      ],
-      translation: 'Le soleil est brillant aujourd\'hui'
-    }
-  ];
+  const loadNewSentence = () => {
+    const { min, max } = calculateDifficultyRange(score);
+    const availableSentences = getQuestionsByDifficulty(sentences, min, max);
+    
+    // Filter out used sentences for variety
+    const unusedSentences = availableSentences.filter(s => !usedSentences.has(s.id));
+    const sentencesToUse = unusedSentences.length > 0 ? unusedSentences : availableSentences;
+    
+    // Select random sentence
+    const selectedSentence = sentencesToUse[Math.floor(Math.random() * sentencesToUse.length)];
+    
+    // Update used sentences
+    const newUsedSentences = new Set(usedSentences);
+    newUsedSentences.add(selectedSentence.id);
+    setUsedSentences(newUsedSentences);
+    
+    setCurrentSentence(selectedSentence);
+    const shuffled = [...selectedSentence.words].sort(() => Math.random() - 0.5);
+    setAvailableWords(shuffled);
+    setUserSentence([]);
+  };
 
   useEffect(() => {
-    resetCurrentSentence();
-  }, [currentSentence]);
-
-  const resetCurrentSentence = () => {
-    if (currentSentence < sentences.length) {
-      const shuffled = [...sentences[currentSentence].words].sort(() => Math.random() - 0.5);
-      setAvailableWords(shuffled);
-      setUserSentence([]);
-    }
-  };
+    loadNewSentence();
+  }, []);
 
   const addWordToSentence = (word: WordBlock) => {
     setUserSentence(prev => [...prev, word]);
@@ -88,29 +67,31 @@ const SentenceBuilderGame: React.FC = () => {
   };
 
   const checkSentence = () => {
-    const correctOrder = sentences[currentSentence].words
+    if (!currentSentence) return;
+
+    const correctOrder = currentSentence.words
+      .sort((a, b) => a.order - b.order)
       .map(w => w.word)
       .join(' ');
     const userOrder = userSentence.map(w => w.word).join(' ');
 
     if (correctOrder === userOrder) {
-      setScore(prev => prev + 200);
+      const basePoints = 200;
+      const difficultyBonus = currentSentence.difficulty * 50;
+      const roundBonus = round * 25;
+      const points = basePoints + difficultyBonus + roundBonus;
+      
+      setScore(prev => prev + points);
+      setRound(prev => prev + 1);
+      
       toast({
         title: "Perfect! 🌉",
-        description: "You built the bridge correctly!",
+        description: `You built the bridge correctly! +${points} points!`,
       });
 
-      if (currentSentence + 1 >= sentences.length) {
-        setGameComplete(true);
-        toast({
-          title: "🎉 Bridge Master!",
-          description: "You've completed all the bridges! Excellent work!",
-        });
-      } else {
-        setTimeout(() => {
-          setCurrentSentence(prev => prev + 1);
-        }, 1500);
-      }
+      setTimeout(() => {
+        loadNewSentence();
+      }, 2000);
     } else {
       setLives(prev => prev - 1);
       toast({
@@ -120,6 +101,7 @@ const SentenceBuilderGame: React.FC = () => {
       });
 
       if (lives <= 1) {
+        setGameComplete(true);
         toast({
           title: "Game Over",
           description: "Keep practicing to become a Bridge Master!",
@@ -130,14 +112,18 @@ const SentenceBuilderGame: React.FC = () => {
   };
 
   const resetGame = () => {
-    setCurrentSentence(0);
     setScore(0);
     setLives(3);
+    setRound(1);
     setGameComplete(false);
     setUserSentence([]);
+    setUsedSentences(new Set());
+    loadNewSentence();
   };
 
-  const currentSentenceData = sentences[currentSentence];
+  if (!currentSentence) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <GameLayout
@@ -146,7 +132,7 @@ const SentenceBuilderGame: React.FC = () => {
       icon="🌉"
       score={score}
       lives={lives}
-      level={currentSentence + 1}
+      level={round}
     >
       <div className="kid-card">
         {gameComplete ? (
@@ -156,7 +142,7 @@ const SentenceBuilderGame: React.FC = () => {
               Bridge Master Champion!
             </h3>
             <p className="text-lg text-gray-600 mb-6">
-              You've built all the bridges perfectly! Final Score: {score}
+              You built {round - 1} bridges! Final Score: {score}
             </p>
             <Button onClick={resetGame} className="game-button">
               Build More Bridges 🔄
@@ -177,20 +163,22 @@ const SentenceBuilderGame: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Instructions */}
             <div className="text-center">
               <h2 className="text-2xl font-bold text-kid-purple mb-2">
-                Build the Bridge! 🌉
+                Build the Bridge! 🌉 - Round {round}
               </h2>
               <p className="text-gray-600 mb-2">
                 Arrange the words in the correct order to build a strong bridge.
               </p>
               <p className="text-sm text-kid-orange font-semibold">
-                Target: "{currentSentenceData?.sentence}"
+                Target: "{currentSentence.sentence}"
               </p>
               <p className="text-xs text-gray-500">
-                Translation: {currentSentenceData?.translation}
+                Translation: {currentSentence.translation}
               </p>
+              <div className="inline-block bg-kid-blue/20 px-3 py-1 rounded-full text-sm font-bold text-kid-purple mt-2">
+                Difficulty Level: {currentSentence.difficulty}
+              </div>
             </div>
 
             {/* User's Sentence Area */}
@@ -215,7 +203,7 @@ const SentenceBuilderGame: React.FC = () => {
                 )}
               </div>
               
-              {userSentence.length === currentSentenceData?.words.length && (
+              {userSentence.length === currentSentence.words.length && (
                 <div className="text-center mt-4">
                   <Button onClick={checkSentence} className="game-button">
                     Check Bridge! 🔍
